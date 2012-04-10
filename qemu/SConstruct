@@ -42,6 +42,10 @@ dramsim_path= ARGUMENTS.get('dramsim', '%s/DRAMSim2' % (os.environ['HOME'] ))
 if os.path.isdir(dramsim_path):
 	env.Append(LINKFLAGS=('-ldramsim -L%s -Wl,-rpath=%s' %(dramsim_path, dramsim_path)));
 
+nvdimm_path= ARGUMENTS.get('nvdimm', '%s/NVDIMMSim/src' % (os.environ['HOME'] ))
+if os.path.isdir(nvdimm_path):
+	env.Append(LINKFLAGS=('-lnvdsim -L%s -Wl,-rpath=%s' %(nvdimm_path, nvdimm_path)));
+
 google_perftools = ARGUMENTS.get('gperf', None)
 if google_perftools != None:
     env.Append(LIBS = 'tcmalloc')

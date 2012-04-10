@@ -24,6 +24,10 @@
 
 #define contextcount smp_cpus
 
+#ifdef USE_NVDIMM
+#include <NVDIMMSim.h>
+#endif
+
 extern W64 sim_cycle;
 extern W64 unhalted_cycle_count;
 extern W64 total_uops_committed;
@@ -58,6 +62,7 @@ struct PTLsimMachine : public Statable {
   PTLsimMachine() : Statable("machine") {
       initialized = 0; stopped = 0;
       handle_cpuid = NULL;
+      nvdimm_ssd = NVDSim::getNVDIMMInstance(1,"ini/samsung_K9XXG08UXM_mod.ini","ini/def_system.ini","../SSD_NVDIMMSim/src","");
   }
 
   virtual bool init(PTLsimConfig& config);
@@ -86,6 +91,8 @@ struct PTLsimMachine : public Statable {
   virtual W8 get_num_cores() {
       return NUMBER_OF_CORES;
   }
+
+  NVDSim::NVDIMM *nvdimm_ssd;
 };
 
 void setup_qemu_switch_all_ctx(Context& last_ctx);
