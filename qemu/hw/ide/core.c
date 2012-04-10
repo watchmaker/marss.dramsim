@@ -38,7 +38,7 @@
 #include <ptl-qemu.h>
 #endif
 
-//#define MARSS_DELAY_IO
+#define MARSS_DELAY_IO
 
 static const int smart_attributes[][5] = {
     /* id,  flags, val, wrst, thrsh */
@@ -516,7 +516,8 @@ handle_rw_error:
         s->status = READY_STAT | SEEK_STAT;
 #if defined MARSS_QEMU && defined MARSS_DELAY_IO
         if (in_simulation) {
-            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000);
+            //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000);
+            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read);
         } else {
             ide_set_irq(s->bus);
         }

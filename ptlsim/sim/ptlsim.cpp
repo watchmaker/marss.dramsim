@@ -1405,6 +1405,8 @@ struct QemuIOSignal : public FixStateListObject
     void *arg;
     W64 cycle;
 
+	W64 address;
+
     void init()
     {
         fn = 0;
@@ -1412,23 +1414,80 @@ struct QemuIOSignal : public FixStateListObject
         cycle = 0;
     }
 
-    void setup(QemuIOCB fn, void *arg, int delay)
+    void setup(QemuIOCB fn, void *arg, int delay, uint64_t address)
     {
         this->fn = fn;
         this->arg = arg;
         this->cycle = sim_cycle + delay;
+
+		this->address = address;
     }
 };
 
 static FixStateList<QemuIOSignal, 32> *qemuIOEvents = NULL;
 
+#ifdef NVDIMM_SSD
+static NVDSim::NVDIMM *nvdimm_ssd;
+
+class NVDIMM_callbacks
+{
+	public:
+	void SSD_ReadCallback(uint id, uint64_t addr, uint64_t cycle, bool unmapped)
+	{
+		ptl_logfile << "Enter SSD_ReadCallback with address " << addr << " at cycle " << sim_cycle << "\n";
+		QemuIOSignal *signal;
+		foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
+			ptl_logfile << "Checking address " << signal->address << endl;
+			if (signal->address == addr) {
+				ptl_logfile << "Executing QEMU IO Event for NVDIMM SSD Read to address " << addr << " at " << sim_cycle << endl;
+				signal->fn(signal->arg);
+				qemuIOEvents->free(signal);
+				break;
+			}
+		}
+	}
+
+	void SSD_WriteCallback(uint id, uint64_t addr, uint64_t cycle, bool unmapped)
+	{
+		ptl_logfile << "Enter SSD_WriteCallback with address " << addr << " at cycle " << sim_cycle << "\n";
+		QemuIOSignal *signal;
+		foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
+			ptl_logfile << "Checking address " << signal->address << endl;
+			if (signal->address == addr) {
+				ptl_logfile << "Executing QEMU IO Event for NVDIMM SSD WRITE to address " << addr << " at " << sim_cycle << endl;
+				signal->fn(signal->arg);
+				qemuIOEvents->free(signal);
+				break;
+			}
+		}
+	}
+
+	void register_callbacks()
+	{
+		typedef NVDSim::Callback <NVDIMM_callbacks, void, uint, uint64_t, uint64_t, bool> nvdsim_callback_t;
+		NVDSim::Callback_t *nv_read_cb = new nvdsim_callback_t(this, &NVDIMM_callbacks::SSD_ReadCallback);
+		NVDSim::Callback_t *nv_write_cb = new nvdsim_callback_t(this, &NVDIMM_callbacks::SSD_WriteCallback);
+		nvdimm_ssd->RegisterCallbacks(nv_read_cb, nv_write_cb, NULL);
+	}
+};
+static NVDIMM_callbacks nvdimm_cb;
+#endif
+
 void init_qemu_io_events()
 {
     qemuIOEvents = new FixStateList<QemuIOSignal, 32>();
+
+#ifdef NVDIMM_SSD
+    nvdimm_ssd = NVDSim::getNVDIMMInstance(1,"ini/samsung_K9XXG08UXM_mod.ini","ini/def_system.ini","../SSD_NVDIMMSim/src","");
+	nvdimm_cb.register_callbacks();
+#endif
 }
 
 void clock_qemu_io_events()
 {
+#ifdef NVDIMM_SSD
+	nvdimm_ssd->update();
+#else
     QemuIOSignal *signal;
     foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
         if (signal->cycle <= sim_cycle) {
@@ -1437,16 +1496,22 @@ void clock_qemu_io_events()
             qemuIOEvents->free(signal);
         }
     }
+#endif
 }
 
-extern "C" void add_qemu_io_event(QemuIOCB fn, void *arg, int delay)
+extern "C" void add_qemu_io_event(QemuIOCB fn, void *arg, int delay, uint64_t address, int op_type)
 {
     QemuIOSignal* signal = qemuIOEvents->alloc();
     assert(signal);
 
-    signal->setup(fn, arg, delay);
+    signal->setup(fn, arg, delay, address);
 
+#ifdef NVDIMM_SSD
+	nvdimm_ssd->addTransaction(op_type, address);
+    ptl_logfile << "Added QEMU IO event for NVDIMM SSD at cycle " << sim_cycle << endl;
+#else
     ptl_logfile << "Added QEMU IO event for " << (sim_cycle + delay) << endl;
+#endif
 }
 
 W64 ns_to_simcycles(W64 ns)

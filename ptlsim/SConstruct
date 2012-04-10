@@ -40,7 +40,7 @@ nvdimm_path= ARGUMENTS.get('nvdimm', '%s/NVDIMMSim/src' % (os.environ['HOME'] ))
 #this is probably not enough, should probably check to make sure there's an actual library there
 if os.path.isdir(nvdimm_path):
 	env['CPPPATH'].append(nvdimm_path);
-	env.Append(CCFLAGS = '-DUSE_NVDIMM')
+	env.Append(CCFLAGS = '-DNVDIMM_SSD')
 
 
 optimization_defs = '-fno-trapping-math -fno-stack-protector -fno-exceptions '
