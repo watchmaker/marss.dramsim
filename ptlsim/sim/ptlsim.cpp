@@ -1434,10 +1434,10 @@ class NVDIMM_callbacks
 	public:
 	void SSD_ReadCallback(uint id, uint64_t addr, uint64_t cycle, bool unmapped)
 	{
-		ptl_logfile << "Enter SSD_ReadCallback with address " << addr << " at cycle " << sim_cycle << "\n";
+		//ptl_logfile << "Enter SSD_ReadCallback with address " << addr << " at cycle " << sim_cycle << "\n";
 		QemuIOSignal *signal;
 		foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
-			ptl_logfile << "Checking address " << signal->address << endl;
+			//ptl_logfile << "Checking address " << signal->address << endl;
 			if (signal->address == addr) {
 				ptl_logfile << "Executing QEMU IO Event for NVDIMM SSD Read to address " << addr << " at " << sim_cycle << endl;
 				signal->fn(signal->arg);
@@ -1449,10 +1449,10 @@ class NVDIMM_callbacks
 
 	void SSD_WriteCallback(uint id, uint64_t addr, uint64_t cycle, bool unmapped)
 	{
-		ptl_logfile << "Enter SSD_WriteCallback with address " << addr << " at cycle " << sim_cycle << "\n";
+		//ptl_logfile << "Enter SSD_WriteCallback with address " << addr << " at cycle " << sim_cycle << "\n";
 		QemuIOSignal *signal;
 		foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
-			ptl_logfile << "Checking address " << signal->address << endl;
+			//ptl_logfile << "Checking address " << signal->address << endl;
 			if (signal->address == addr) {
 				ptl_logfile << "Executing QEMU IO Event for NVDIMM SSD WRITE to address " << addr << " at " << sim_cycle << endl;
 				signal->fn(signal->arg);
@@ -1507,8 +1507,9 @@ extern "C" void add_qemu_io_event(QemuIOCB fn, void *arg, int delay, uint64_t ad
     signal->setup(fn, arg, delay, address);
 
 #ifdef NVDIMM_SSD
-	nvdimm_ssd->addTransaction(op_type, address);
-    ptl_logfile << "Added QEMU IO event for NVDIMM SSD at cycle " << sim_cycle << endl;
+	bool isWrite = (op_type == 0); // Note: op_type of 1 is read, 0 is write.
+	nvdimm_ssd->addTransaction(isWrite, address);
+    ptl_logfile << "Added QEMU IO event of type " << op_type << " for NVDIMM SSD at cycle " << sim_cycle << endl;
 #else
     ptl_logfile << "Added QEMU IO event for " << (sim_cycle + delay) << endl;
 #endif
