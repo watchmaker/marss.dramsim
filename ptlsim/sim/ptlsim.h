@@ -24,9 +24,6 @@
 
 #define contextcount smp_cpus
 
-#ifdef NVDIMM_SSD
-#include <NVDIMMSim.h>
-#endif
 
 extern W64 sim_cycle;
 extern W64 unhalted_cycle_count;

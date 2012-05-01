@@ -35,12 +35,11 @@ if os.path.isdir(dramsim_path):
 	env.Append(CCFLAGS = '-DDRAMSIM')
 
 
-#nvdimm 
-nvdimm_path= ARGUMENTS.get('nvdimm', '%s/NVDIMMSim/src' % (os.environ['HOME'] ))
-#this is probably not enough, should probably check to make sure there's an actual library there
-if os.path.isdir(nvdimm_path):
-	env['CPPPATH'].append(nvdimm_path);
-	env.Append(CCFLAGS = '-DNVDIMM_SSD')
+#PCI_SSD 
+pcissd_path= ARGUMENTS.get('pcissd', '%s/PCI_SSD' % (os.environ['HOME'] ))
+if os.path.isdir(pcissd_path):
+	env['CPPPATH'].append(pcissd_path);
+	env.Append(CCFLAGS = '-DENABLE_PCI_SSD')
 
 
 optimization_defs = '-fno-trapping-math -fno-stack-protector -fno-exceptions '

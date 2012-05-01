@@ -30,6 +30,10 @@
 #include <syscalls.h>
 #include <ptl-qemu.h>
 
+#ifdef ENABLE_PCI_SSD
+#include <PCI_SSD.h>
+#endif
+
 #include <test.h>
 #ifdef ENABLE_GPERF
 #include <google/profiler.h>
@@ -1426,20 +1430,20 @@ struct QemuIOSignal : public FixStateListObject
 
 static FixStateList<QemuIOSignal, 32> *qemuIOEvents = NULL;
 
-#ifdef NVDIMM_SSD
-static NVDSim::NVDIMM *nvdimm_ssd;
+#ifdef ENABLE_PCI_SSD
+static PCISSD::PCI_SSD_System *pci_ssd;
 
-class NVDIMM_callbacks
+class PCISSD_callbacks
 {
 	public:
-	void SSD_ReadCallback(uint id, uint64_t addr, uint64_t cycle, bool unmapped)
+	void SSD_ReadCallback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		//ptl_logfile << "Enter SSD_ReadCallback with address " << addr << " at cycle " << sim_cycle << "\n";
+		ptl_logfile << "Enter SSD_ReadCallback with address " << addr << " at cycle " << sim_cycle << "\n";
 		QemuIOSignal *signal;
 		foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
-			//ptl_logfile << "Checking address " << signal->address << endl;
+			ptl_logfile << "Checking address " << signal->address << endl;
 			if (signal->address == addr) {
-				ptl_logfile << "Executing QEMU IO Event for NVDIMM SSD Read to address " << addr << " at " << sim_cycle << endl;
+				ptl_logfile << "Executing QEMU IO Event for PCI_SSD Read to address " << addr << " at " << sim_cycle << endl;
 				signal->fn(signal->arg);
 				qemuIOEvents->free(signal);
 				break;
@@ -1447,14 +1451,14 @@ class NVDIMM_callbacks
 		}
 	}
 
-	void SSD_WriteCallback(uint id, uint64_t addr, uint64_t cycle, bool unmapped)
+	void SSD_WriteCallback(uint id, uint64_t addr, uint64_t cycle)
 	{
-		//ptl_logfile << "Enter SSD_WriteCallback with address " << addr << " at cycle " << sim_cycle << "\n";
+		ptl_logfile << "Enter SSD_WriteCallback with address " << addr << " at cycle " << sim_cycle << "\n";
 		QemuIOSignal *signal;
 		foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
-			//ptl_logfile << "Checking address " << signal->address << endl;
+			ptl_logfile << "Checking address " << signal->address << endl;
 			if (signal->address == addr) {
-				ptl_logfile << "Executing QEMU IO Event for NVDIMM SSD WRITE to address " << addr << " at " << sim_cycle << endl;
+				ptl_logfile << "Executing QEMU IO Event for PCI_SSD WRITE to address " << addr << " at " << sim_cycle << endl;
 				signal->fn(signal->arg);
 				qemuIOEvents->free(signal);
 				break;
@@ -1464,29 +1468,29 @@ class NVDIMM_callbacks
 
 	void register_callbacks()
 	{
-		typedef NVDSim::Callback <NVDIMM_callbacks, void, uint, uint64_t, uint64_t, bool> nvdsim_callback_t;
-		NVDSim::Callback_t *nv_read_cb = new nvdsim_callback_t(this, &NVDIMM_callbacks::SSD_ReadCallback);
-		NVDSim::Callback_t *nv_write_cb = new nvdsim_callback_t(this, &NVDIMM_callbacks::SSD_WriteCallback);
-		nvdimm_ssd->RegisterCallbacks(nv_read_cb, nv_write_cb, NULL);
+		typedef PCISSD::Callback <PCISSD_callbacks, void, uint, uint64_t, uint64_t> pcissd_callback_t;
+		PCISSD::TransactionCompleteCB *ssd_read_cb = new pcissd_callback_t(this, &PCISSD_callbacks::SSD_ReadCallback);
+		PCISSD::TransactionCompleteCB *ssd_write_cb = new pcissd_callback_t(this, &PCISSD_callbacks::SSD_WriteCallback);
+		pci_ssd->RegisterCallbacks(ssd_read_cb, ssd_write_cb);
 	}
 };
-static NVDIMM_callbacks nvdimm_cb;
+static PCISSD_callbacks pcissd_cb;
 #endif
 
 void init_qemu_io_events()
 {
     qemuIOEvents = new FixStateList<QemuIOSignal, 32>();
 
-#ifdef NVDIMM_SSD
-    nvdimm_ssd = NVDSim::getNVDIMMInstance(1,"ini/samsung_K9XXG08UXM_mod.ini","ini/def_system.ini","../SSD_NVDIMMSim/src","");
-	nvdimm_cb.register_callbacks();
+#ifdef ENABLE_PCI_SSD
+    pci_ssd = PCISSD::getInstance(1);
+	pcissd_cb.register_callbacks();
 #endif
 }
 
 void clock_qemu_io_events()
 {
-#ifdef NVDIMM_SSD
-	nvdimm_ssd->update();
+#ifdef ENABLE_PCI_SSD
+	pci_ssd->update();
 #else
     QemuIOSignal *signal;
     foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
@@ -1506,10 +1510,11 @@ extern "C" void add_qemu_io_event(QemuIOCB fn, void *arg, int delay, uint64_t ad
 
     signal->setup(fn, arg, delay, address);
 
-#ifdef NVDIMM_SSD
+#ifdef ENABLE_PCI_SSD
 	bool isWrite = (op_type == 0); // Note: op_type of 1 is read, 0 is write.
-	nvdimm_ssd->addTransaction(isWrite, address);
-    ptl_logfile << "Added QEMU IO event of type " << op_type << " for NVDIMM SSD at cycle " << sim_cycle << endl;
+    ptl_logfile << "Attempting to add QEMU IO event of type " << op_type << " for PCI_SSD address " << address << " at cycle " << sim_cycle << endl;
+	pci_ssd->addTransaction(isWrite, address);
+    ptl_logfile << "Added QEMU IO event of type " << op_type << " for PCI_SSD address " << address << " at cycle " << sim_cycle << endl;
 #else
     ptl_logfile << "Added QEMU IO event for " << (sim_cycle + delay) << endl;
 #endif
