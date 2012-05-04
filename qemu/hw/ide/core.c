@@ -517,7 +517,8 @@ handle_rw_error:
 #if defined MARSS_QEMU && defined MARSS_DELAY_IO
         if (in_simulation) {
             //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000);
-            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read);
+			fprintf(stderr, "\nio_buffer_size = %d\n", s->io_buffer_size);
+            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size);
         } else {
             ide_set_irq(s->bus);
         }

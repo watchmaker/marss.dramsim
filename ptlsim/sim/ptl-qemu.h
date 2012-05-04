@@ -204,7 +204,7 @@ void ptl_quit(void);
 
 typedef void (*QemuIOCB)(void*);
 
-void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t address, int op_type);
+void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t address, int op_type, int io_buffer_size);
 
 /*
  * ptl_start_sim_rip
