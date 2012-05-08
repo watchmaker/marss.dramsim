@@ -1,0 +1,5 @@
+-corefreq 2000000000
+-machine shared_l2
+-logfile marss.log
+-stats stats.log
+
