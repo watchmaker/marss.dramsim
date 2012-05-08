@@ -97,6 +97,9 @@ class MemoryController : public Controller
 		void write_return_cb(uint, uint64_t, uint64_t);
 		MultiChannelMemorySystem *mem;
 #endif
+#ifdef ENABLE_PCI_SSD
+		void add_dma_cb(uint isWrite, uint64_t addr, uint64_t blah);
+#endif
 		bool handle_request_cb(void *arg);
 		bool handle_interconnect_cb(void *arg);
 		int access_fast_path(Interconnect *interconnect,

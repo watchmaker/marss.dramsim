@@ -511,14 +511,30 @@ handle_rw_error:
         s->nsector -= n;
     }
 
+
     /* end of transfer ? */
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
 #if defined MARSS_QEMU && defined MARSS_DELAY_IO
         if (in_simulation) {
             //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000);
+
+			// Copy the SG list for this transaction into tmeporary arrays.
+			// These will be freed in ptlsim.cpp.
+			fprintf(stderr, "\nsector_num = %d\n", sector_num);
 			fprintf(stderr, "\nio_buffer_size = %d\n", s->io_buffer_size);
-            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size);
+			fprintf(stderr, "\nSG list (size = %ld, nsg=%d)\n", s->sg.size, s->sg.nsg);
+			uint64_t *sg_ptr = malloc(sizeof(uint64_t) * s->sg.nsg);
+			uint64_t *sg_len = malloc(sizeof(uint64_t) * s->sg.nsg);
+			int i;
+			for (i=0; i<s->sg.nsg; i++)
+			{
+				fprintf(stderr, "%d (base = %ld, len = %ld)\n", i, s->sg.sg[i].base, s->sg.sg[i].len);
+				sg_ptr[i] = s->sg.sg[i].base;
+				sg_len[i] = s->sg.sg[i].len;
+			}
+            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
+            //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size, NULL, NULL, 0);
         } else {
             ide_set_irq(s->bus);
         }

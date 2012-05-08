@@ -32,7 +32,7 @@
 
 #ifdef ENABLE_PCI_SSD
 #include <PCI_SSD.h>
-static PCISSD::PCI_SSD_System *pci_ssd;
+PCISSD::PCI_SSD_System *pci_ssd = NULL;
 #endif
 
 #include <test.h>
@@ -1536,7 +1536,10 @@ void init_qemu_io_events()
     qemuIOEvents = new FixStateList<QemuIOSignal, 32>();
 
 #ifdef ENABLE_PCI_SSD
-    pci_ssd = PCISSD::getInstance(1);
+	if (pci_ssd == NULL)
+	{
+		pci_ssd = PCISSD::getInstance(1);
+	}
 	pcissd_cb.register_callbacks();
 #endif
 }
@@ -1557,20 +1560,39 @@ void clock_qemu_io_events()
 #endif
 }
 
-extern "C" void add_qemu_io_event(QemuIOCB fn, void *arg, int delay, uint64_t address, int op_type, int io_buffer_size)
+extern "C" void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t address, int op_type, int io_buffer_size, 
+		uint64_t *sg_ptr, uint64_t *sg_len, uint64_t sg_size)
 {
     QemuIOSignal* signal = qemuIOEvents->alloc();
     assert(signal);
 
 
 #ifdef ENABLE_PCI_SSD
+	// Compute the parameters for the transaction.
 	int sector_size = 512;
 	address = address * sector_size; // Multiply address by 512 because we want a byte address, not a sector number.
 	int num_sectors = io_buffer_size / sector_size;
 	bool isWrite = (op_type == 0); // Note: op_type of 1 is read, 0 is write.
+
     signal->setup(fn, arg, delay, address);
+
     ptl_logfile << "Attempting to add QEMU IO event of type " << op_type << " for PCI_SSD address " << address << " at cycle " << sim_cycle << endl;
+
+
+	// Pass the SG list item by item.
+	uint64_t i;
+	for (i=0; i < sg_size; i++)
+	{
+		pci_ssd->AddDMAScatterGatherEntry(sg_ptr[i], sg_len[i]);
+	}
+
+	// Free the SG list.
+	free(sg_ptr);
+	free(sg_len);
+
+	// Add the transaction.
 	pci_ssd->addTransaction(isWrite, address, num_sectors);
+
     ptl_logfile << "Added QEMU IO event of type " << op_type << " for PCI_SSD address " << address << " at cycle " << sim_cycle << endl;
 #else
     signal->setup(fn, arg, delay, address);

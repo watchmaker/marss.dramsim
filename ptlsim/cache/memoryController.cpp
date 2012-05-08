@@ -38,6 +38,12 @@
 
 #include <machine.h>
 
+#ifdef ENABLE_PCI_SSD
+#include <PCI_SSD.h>
+// Declared in sim/ptlsim.cpp
+extern PCISSD::PCI_SSD_System *pci_ssd;
+#endif
+
 using namespace Memory;
 
 MemoryController::MemoryController(W8 coreid, const char *name,
@@ -61,6 +67,18 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 	DRAMSim::TransactionCompleteCB *write_cb = new dramsim_callback_t(this, &MemoryController::write_return_cb);
 	mem->RegisterCallbacks(read_cb, write_cb, NULL);
 
+#endif
+
+#ifdef ENABLE_PCI_SSD
+	if (pci_ssd == NULL)
+	{
+		pci_ssd = PCISSD::getInstance(2);
+	}
+
+	// Register the DMA callback.
+	typedef PCISSD::Callback <Memory::MemoryController, void, uint, uint64_t, uint64_t> pcissd_callback_t;
+	PCISSD::DMATransactionCB *dma_cb = new pcissd_callback_t(this, &MemoryController::add_dma_cb);
+	pci_ssd->RegisterDMACallback(dma_cb, qemu_ram_size);
 #endif
 
     /* Convert latency from ns to cycles */
@@ -240,6 +258,14 @@ void MemoryController::print(ostream& os) const
 #ifdef DRAMSIM
 void MemoryController::write_return_cb(uint id, uint64_t addr, uint64_t cycle)
 {
+#ifdef ENABLE_PCI_SSD
+	if (pci_ssd->isDMATransaction(addr))
+	{
+		pci_ssd->CompleteDMATransaction(true, addr);
+		return;
+	}
+#endif
+
 	MemoryQueueEntry *queueEntry = NULL;
 	memdebug("[DRAMSIM] WRITE ACK" <<std::hex<<addr<<std::dec);
 
@@ -257,6 +283,14 @@ void MemoryController::write_return_cb(uint id, uint64_t addr, uint64_t cycle)
 
 void MemoryController::read_return_cb(uint id, uint64_t addr, uint64_t cycle)
 {
+#ifdef ENABLE_PCI_SSD
+	if (pci_ssd->isDMATransaction(addr))
+	{
+		pci_ssd->CompleteDMATransaction(false, addr);
+		return;
+	}
+#endif
+
 	//make sure something is there
 //	assert(pending_map.find(addr) != pending_map.end());
 	// no delay here since we've already waited up to this cycle
@@ -280,6 +314,16 @@ void MemoryController::read_return_cb(uint id, uint64_t addr, uint64_t cycle)
 }
 
 #endif
+
+#ifdef ENABLE_PCI_SSD
+void MemoryController::add_dma_cb(uint isWrite, uint64_t addr, uint64_t blah)
+{
+	// Add transaction to DRAMSim.
+    bool accepted = mem->addTransaction(isWrite, addr);
+	assert(accepted);
+}
+#endif
+
 bool MemoryController::access_completed_cb(void *arg)
 {
     MemoryQueueEntry *queueEntry = (MemoryQueueEntry*)arg;
