@@ -1586,10 +1586,6 @@ extern "C" void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t ad
 		pci_ssd->AddDMAScatterGatherEntry(sg_ptr[i], sg_len[i]);
 	}
 
-	// Free the SG list.
-	free(sg_ptr);
-	free(sg_len);
-
 	// Add the transaction.
 	pci_ssd->addTransaction(isWrite, address, num_sectors);
 
@@ -1598,6 +1594,10 @@ extern "C" void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t ad
     signal->setup(fn, arg, delay, address);
     ptl_logfile << "Added QEMU IO event for " << (sim_cycle + delay) << endl;
 #endif
+
+	// Free the SG list.
+	free(sg_ptr);
+	free(sg_len);
 }
 
 W64 ns_to_simcycles(W64 ns)

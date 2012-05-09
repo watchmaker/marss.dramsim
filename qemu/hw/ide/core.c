@@ -505,7 +505,7 @@ handle_rw_error:
     n = s->io_buffer_size >> 9;
     sector_num = ide_get_sector(s);
     if (n > 0) {
-        dma_buf_commit(s, s->is_read);
+        //dma_buf_commit(s, s->is_read);
         sector_num += n;
         ide_set_sector(s, sector_num);
         s->nsector -= n;
@@ -521,7 +521,8 @@ handle_rw_error:
 
 			// Copy the SG list for this transaction into tmeporary arrays.
 			// These will be freed in ptlsim.cpp.
-			fprintf(stderr, "\nsector_num = %d\n", sector_num);
+			uint64_t cur_sector = sector_num - n; // Use sector_num-n because n is added to compute next sector above.
+			fprintf(stderr, "\nsector_num = %lu\n", cur_sector);
 			fprintf(stderr, "\nio_buffer_size = %d\n", s->io_buffer_size);
 			fprintf(stderr, "\nSG list (size = %ld, nsg=%d)\n", s->sg.size, s->sg.nsg);
 			uint64_t *sg_ptr = malloc(sizeof(uint64_t) * s->sg.nsg);
@@ -533,7 +534,8 @@ handle_rw_error:
 				sg_ptr[i] = s->sg.sg[i].base;
 				sg_len[i] = s->sg.sg[i].len;
 			}
-            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
+            //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, cur_sector, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
+            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, cur_sector, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
             //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size, NULL, NULL, 0);
         } else {
             ide_set_irq(s->bus);
@@ -541,8 +543,19 @@ handle_rw_error:
 #else
         ide_set_irq(s->bus);
 #endif
+		// Cleanup s->sg below the add_qemu_io_event so we don't have a use after free() error.
+		// Must do this here too to prevent a memory leak.
+		if (n > 0) {
+			dma_buf_commit(s, s->is_read);
+		}
+
         goto eot;
     }
+
+	// Cleanup s->sg below the add_qemu_io_event so we don't have a use after free() error.
+    if (n > 0) {
+        dma_buf_commit(s, s->is_read);
+	}
 
     /* launch next transfer */
     n = s->nsector;
