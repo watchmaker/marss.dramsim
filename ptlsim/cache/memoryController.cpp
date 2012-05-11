@@ -38,10 +38,14 @@
 
 #include <machine.h>
 
+#ifdef DRAMSIM
 #ifdef ENABLE_PCI_SSD
+// Note: ALL uses of the ENABLE_PCI_SSD code in memoryController are wrapped in DRAMSIM.
+// This allows compiling PCI_SSD without DRAMSIM if you want (which would be silly).
 #include <PCI_SSD.h>
 // Declared in sim/ptlsim.cpp
 extern PCISSD::PCI_SSD_System *pci_ssd;
+#endif
 #endif
 
 using namespace Memory;
@@ -67,8 +71,6 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 	DRAMSim::TransactionCompleteCB *write_cb = new dramsim_callback_t(this, &MemoryController::write_return_cb);
 	mem->RegisterCallbacks(read_cb, write_cb, NULL);
 
-#endif
-
 #ifdef ENABLE_PCI_SSD
 	if (pci_ssd == NULL)
 	{
@@ -80,6 +82,8 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 	PCISSD::DMATransactionCB *dma_cb = new pcissd_callback_t(this, &MemoryController::add_dma_cb);
 	pci_ssd->RegisterDMACallback(dma_cb, qemu_ram_size);
 #endif
+#endif
+
 
     /* Convert latency from ns to cycles */
     latency_ = ns_to_simcycles(latency_);
@@ -313,8 +317,6 @@ void MemoryController::read_return_cb(uint id, uint64_t addr, uint64_t cycle)
 
 }
 
-#endif
-
 #ifdef ENABLE_PCI_SSD
 void MemoryController::add_dma_cb(uint isWrite, uint64_t addr, uint64_t blah)
 {
@@ -323,6 +325,9 @@ void MemoryController::add_dma_cb(uint isWrite, uint64_t addr, uint64_t blah)
 	assert(accepted);
 }
 #endif
+
+#endif
+
 
 bool MemoryController::access_completed_cb(void *arg)
 {
