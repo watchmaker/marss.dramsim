@@ -45,7 +45,8 @@ namespace Memory{
 	const int CPU_CONT_ICACHE_BUF_SIZE = 32;
 
 	// Main Memory
-	const int MEM_REQ_NUM = 64;
+	const int MEM_REQ_NUM = 128;
+	//const int MEM_REQ_NUM = 64;
 	const int MEM_BANKS = 8;
 
 	// Average wait dealy for retrying (general)
