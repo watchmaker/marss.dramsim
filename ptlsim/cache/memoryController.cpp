@@ -262,13 +262,6 @@ void MemoryController::print(ostream& os) const
 #ifdef DRAMSIM
 void MemoryController::write_return_cb(uint id, uint64_t addr, uint64_t cycle)
 {
-#ifdef ENABLE_PCI_SSD
-	if (pci_ssd->isDMATransaction(addr))
-	{
-		pci_ssd->CompleteDMATransaction(true, addr);
-		return;
-	}
-#endif
 
 	MemoryQueueEntry *queueEntry = NULL;
 	memdebug("[DRAMSIM] WRITE ACK" <<std::hex<<addr<<std::dec);
@@ -277,23 +270,34 @@ void MemoryController::write_return_cb(uint id, uint64_t addr, uint64_t cycle)
 			prev_t) {
 		if (ALIGN_ADDRESS(queueEntry->request->get_physical_address(),dramsim_transaction_size) == addr)
 		{
-			memdebug("[DRAMSIM] entry for address "<< std::hex << addr << std::dec);
-			access_completed_cb(queueEntry);
-			return;
+			bool isWrite = queueEntry->request->get_type() == MEMORY_OP_UPDATE;
+#ifdef ENABLE_PCI_SSD
+			// Call isDMATransaction simply to log events in which a transaction in the pendingRequests_ list
+			// is also in the pending DMA map.
+			pci_ssd->isDMATransaction(true, addr, isWrite);
+#endif
+			if (isWrite)
+			{
+				memdebug("[DRAMSIM] entry for address "<< std::hex << addr << std::dec);
+				access_completed_cb(queueEntry);
+				return;
+			}
 		}
 	}
+
+#ifdef ENABLE_PCI_SSD
+	if (pci_ssd->isDMATransaction(true, addr, false))
+	{
+		pci_ssd->CompleteDMATransaction(true, addr);
+		return;
+	}
+#endif
+
 	assert(0);
 }
 
 void MemoryController::read_return_cb(uint id, uint64_t addr, uint64_t cycle)
 {
-#ifdef ENABLE_PCI_SSD
-	if (pci_ssd->isDMATransaction(addr))
-	{
-		pci_ssd->CompleteDMATransaction(false, addr);
-		return;
-	}
-#endif
 
 	//make sure something is there
 //	assert(pending_map.find(addr) != pending_map.end());
@@ -308,11 +312,29 @@ void MemoryController::read_return_cb(uint id, uint64_t addr, uint64_t cycle)
 			prev_t) {
 		if (ALIGN_ADDRESS(queueEntry->request->get_physical_address(),dramsim_transaction_size) == addr)
 		{
-			memdebug("[DRAMSIM] entry for address "<< std::hex << addr << queueEntry->request << std::dec);
-			access_completed_cb(queueEntry);
-			return;
+			bool isWrite = queueEntry->request->get_type() == MEMORY_OP_UPDATE;
+#ifdef ENABLE_PCI_SSD
+			// Call isDMATransaction simply to log events in which a transaction in the pendingRequests_ list
+			// is also in the pending DMA map.
+			pci_ssd->isDMATransaction(false, addr, !isWrite);
+#endif
+			if (!isWrite)
+			{
+				memdebug("[DRAMSIM] entry for address "<< std::hex << addr << queueEntry->request << std::dec);
+				access_completed_cb(queueEntry);
+				return;
+			}
 		}
 	}
+
+#ifdef ENABLE_PCI_SSD
+	if (pci_ssd->isDMATransaction(false, addr, false))
+	{
+		pci_ssd->CompleteDMATransaction(false, addr);
+		return;
+	}
+#endif
+
 	assert(0);
 
 }
