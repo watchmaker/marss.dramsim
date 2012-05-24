@@ -40,11 +40,16 @@ else:
 
 dramsim_path= ARGUMENTS.get('dramsim', '%s/DRAMSim2' % (os.environ['HOME'] ))
 if os.path.isdir(dramsim_path):
-	env.Append(LINKFLAGS=('-Wl,--no-as-needed -ldramsim -L%s -Wl,-rpath=%s' %(dramsim_path, dramsim_path)));
+	env.Append(LINKFLAGS=('-Wl,-rpath=%s' %(dramsim_path)))
+	env.Append(LIBS=('dramsim'))
+	env.Append(LIBPATH=(dramsim_path))
+
 
 pcissd_path= ARGUMENTS.get('pcissd', '%s/PCI_SSD' % (os.environ['HOME'] ))
 if os.path.isdir(pcissd_path):
-	env.Append(LINKFLAGS=('-lpcissd -L%s -Wl,-rpath=%s' %(pcissd_path, pcissd_path)));
+	env.Append(LINKFLAGS=('-Wl,-rpath=%s' %(pcissd_path)))
+	env.Append(LIBS=('pcissd'))
+	env.Append(LIBPATH=(pcissd_path))
 
 google_perftools = ARGUMENTS.get('gperf', None)
 if google_perftools != None:
