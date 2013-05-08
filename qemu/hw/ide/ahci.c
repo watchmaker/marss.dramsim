@@ -122,8 +122,10 @@ static void ahci_irq_raise(AHCIState *s, AHCIDevice *dev)
     DPRINTF(0, "raise irq\n");
 
     if (msi_enabled(&d->card)) {
+		//fprintf(stderr, "JimMod: ahci_irq_raise() called msi_notify()\n");
         msi_notify(&d->card, 0);
     } else {
+		//fprintf(stderr, "JimMod: ahci_irq_raise() called qemu_irq_raise()\n");
         qemu_irq_raise(s->irq);
     }
 }
@@ -698,6 +700,8 @@ static void ncq_cb(void *opaque, int ret)
     NCQTransferState *ncq_tfs = (NCQTransferState *)opaque;
     IDEState *ide_state = &ncq_tfs->drive->port.ifs[0];
 
+	fprintf(stderr, "JimMod: ncb_cb() called\n");
+
     /* Clear bit for this tag in SActive */
     ncq_tfs->drive->port_regs.scr_act &= ~(1 << ncq_tfs->tag);
 
@@ -873,8 +877,11 @@ static int handle_cmd(AHCIState *s, int port, int slot)
         if ((cmd_fis[2] == READ_FPDMA_QUEUED) ||
             (cmd_fis[2] == WRITE_FPDMA_QUEUED)) {
             process_ncq_command(s, port, cmd_fis, slot);
+			fprintf(stderr, "JimMod: handle_cmd() calling process_ncq_command()\n");
             goto out;
         }
+
+		fprintf(stderr, "JimMod: handle_cmd() did not call process_ncq_command()\n");
 
         /* Decompose the FIS  */
         ide_state->nsector = (int64_t)((cmd_fis[13] << 8) | cmd_fis[12]);
@@ -977,6 +984,7 @@ out:
     if (!(s->status & DRQ_STAT)) {
         /* done with DMA */
         ahci_trigger_irq(ad->hba, ad, PORT_IRQ_STAT_DSS);
+		fprintf(stderr, "JimMod: ahci_trigger_irq() called by ahci_start_transfer()\n");
     }
 
     return 0;
@@ -1102,6 +1110,8 @@ void ahci_init(AHCIState *s, DeviceState *qdev, int ports)
 {
     qemu_irq *irqs;
     int i;
+
+	fprintf(stderr, "JimMod: in ahci_init()\n");
 
     s->ports = ports;
     s->dev = qemu_mallocz(sizeof(AHCIDevice) * ports);
