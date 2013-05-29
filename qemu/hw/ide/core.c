@@ -534,9 +534,9 @@ handle_rw_error:
 				sg_ptr[i] = s->sg.sg[i].base;
 				sg_len[i] = s->sg.sg[i].len;
 			}
-            //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, cur_sector, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
-            add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, cur_sector, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
-            //add_qemu_io_event((QemuIOCB)&ide_set_irq, s->bus, 20000, sector_num, s->is_read, s->io_buffer_size, NULL, NULL, 0);
+
+            // call ptlsim io handling in IDE mode (mode 0)
+            add_qemu_io_event((QemuIOCB)&ide_set_irq, NULL, s->bus, 0, 0, 20000, cur_sector, s->is_read, s->io_buffer_size, sg_ptr, sg_len, s->sg.nsg);
         } else {
             ide_set_irq(s->bus);
         }

@@ -1461,7 +1461,10 @@ void dump_all_info() {
 struct QemuIOSignal : public FixStateListObject
 {
     QemuIOCB fn;
+    QemuIOCB2 fn2;
     void *arg;
+    int arg2;
+	int mode; // 0=>IDE, 1=>AHCI
     W64 cycle;
 
 	W64 address;
@@ -1469,18 +1472,39 @@ struct QemuIOSignal : public FixStateListObject
     void init()
     {
         fn = 0;
+        fn2 = 0;
         arg = 0;
+        arg2 = 0;
+		mode = 0;
         cycle = 0;
     }
 
-    void setup(QemuIOCB fn, void *arg, int delay, uint64_t address)
+    void setup(QemuIOCB fn, QemuIOCB2 fn2, void *arg, int arg2, int mode, int delay, uint64_t address)
     {
-        this->fn = fn;
+		this->fn = fn;
+		this->fn2 = fn2;
         this->arg = arg;
+        this->arg2 = arg2;
+        this->mode = mode;
         this->cycle = sim_cycle + delay;
 
 		this->address = address;
     }
+
+	void do_callback()
+	{
+		if (mode == 0)
+		{
+			// IDE callback
+			this->fn(this->arg);
+		}
+		else
+		{
+			// AHCI callback
+			this->fn2(this->arg, this->arg2);
+		}
+	}
+
 };
 
 static FixStateList<QemuIOSignal, 32> *qemuIOEvents = NULL;
@@ -1498,7 +1522,7 @@ class PCISSD_callbacks
 			ptl_logfile << "Checking address " << signal->address << endl;
 			if (signal->address == addr) {
 				ptl_logfile << "Executing QEMU IO Event for PCI_SSD Read to address " << addr << " at " << sim_cycle << endl;
-				signal->fn(signal->arg);
+				signal->do_callback();
 				qemuIOEvents->free(signal);
 				break;
 			}
@@ -1513,7 +1537,7 @@ class PCISSD_callbacks
 			ptl_logfile << "Checking address " << signal->address << endl;
 			if (signal->address == addr) {
 				ptl_logfile << "Executing QEMU IO Event for PCI_SSD WRITE to address " << addr << " at " << sim_cycle << endl;
-				signal->fn(signal->arg);
+				signal->do_callback();
 				qemuIOEvents->free(signal);
 				break;
 			}
@@ -1553,14 +1577,14 @@ void clock_qemu_io_events()
     foreach_list_mutable(qemuIOEvents->list(), signal, entry, prev) {
         if (signal->cycle <= sim_cycle) {
             ptl_logfile << "Executing QEMU IO Event at " << sim_cycle << endl;
-            signal->fn(signal->arg);
+			signal->do_callback();
             qemuIOEvents->free(signal);
         }
     }
 #endif
 }
 
-extern "C" void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t address, int op_type, int io_buffer_size, 
+extern "C" void add_qemu_io_event(QemuIOCB fn, QemuIOCB2 fn2, void* arg, int arg2, int mode, int delay, uint64_t address, int op_type, int io_buffer_size, 
 		uint64_t *sg_ptr, uint64_t *sg_len, uint64_t sg_size)
 {
     QemuIOSignal* signal = qemuIOEvents->alloc();
@@ -1574,7 +1598,7 @@ extern "C" void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t ad
 	int num_sectors = io_buffer_size / sector_size;
 	bool isWrite = (op_type == 0); // Note: op_type of 1 is read, 0 is write.
 
-    signal->setup(fn, arg, delay, address);
+    signal->setup(fn, fn2, arg, arg2, mode, delay, address);
 
     ptl_logfile << "Attempting to add QEMU IO event of type " << op_type << " for PCI_SSD address " << address << " at cycle " << sim_cycle << endl;
 

@@ -203,8 +203,10 @@ void qemu_take_screenshot(char* filename);
 void ptl_quit(void);
 
 typedef void (*QemuIOCB)(void*);
+typedef void (*QemuIOCB2)(void*, int);
 
-void add_qemu_io_event(QemuIOCB fn, void* arg, int delay, uint64_t address, int op_type, int io_buffer_size, uint64_t *sg_ptr, uint64_t *sg_len, uint64_t sg_size);
+void add_qemu_io_event(QemuIOCB fn, QemuIOCB2 fn2, void* arg, int arg2, int mode, int delay, uint64_t address, int op_type, int io_buffer_size, 
+		uint64_t *sg_ptr, uint64_t *sg_len, uint64_t sg_size);
 
 /*
  * ptl_start_sim_rip

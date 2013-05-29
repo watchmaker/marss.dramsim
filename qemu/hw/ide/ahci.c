@@ -33,6 +33,12 @@
 #include <hw/ide/pci.h>
 #include <hw/ide/ahci.h>
 
+#ifdef MARSS_QEMU
+#include <ptl-qemu.h>
+#endif
+
+#define MARSS_DELAY_IO
+
 /* #define DEBUG_AHCI */
 
 #ifdef DEBUG_AHCI
@@ -695,7 +701,7 @@ out:
     return r;
 }
 
-static void ncq_cb(void *opaque, int ret)
+static void ncq_cb_finish(void *opaque, int ret)
 {
     NCQTransferState *ncq_tfs = (NCQTransferState *)opaque;
     IDEState *ide_state = &ncq_tfs->drive->port.ifs[0];
@@ -722,6 +728,64 @@ static void ncq_cb(void *opaque, int ret)
 
     qemu_sglist_destroy(&ncq_tfs->sglist);
     ncq_tfs->used = 0;
+}
+
+static void ncq_cb_start(void *opaque, int ret)
+{
+    // Extract and print out all important pieces of data for call into PTLSim Disk Simulation code.
+
+    NCQTransferState *ncq_tfs = (NCQTransferState *)opaque;
+    // Extract LBA
+    uint64_t lba = ncq_tfs->lba;
+
+    // Extract Operation Type
+    int is_read = ncq_tfs->is_read;
+
+    // Extract Operation Size
+    int io_buffer_size = (int)ncq_tfs->sector_count;
+
+
+    // Exract sglist
+    QEMUSGList * sglist = &ncq_tfs->sglist;
+
+    int io_buffer_size2 = 0;
+    int i;
+    for (i = 0; i < sglist->nsg; i++) {
+        io_buffer_size2 += sglist->sg[i].len;
+    }
+
+	fprintf(stderr, "JimMod: In ncb_cb_start(): lba=%lu, is_read=%d, sector_count=%d, io_buffer_size2=%d\n", lba, is_read, io_buffer_size, io_buffer_size2);
+
+#if defined MARSS_QEMU && defined MARSS_DELAY_IO
+    if (in_simulation) {
+		uint64_t cur_sector = lba;
+		fprintf(stderr, "\nsector_num = %lu\n", cur_sector);
+		fprintf(stderr, "\nio_buffer_size = %d\n", io_buffer_size);
+		fprintf(stderr, "\nSG list (size = %ld, nsg=%d)\n", sglist->size, sglist->nsg);
+
+		// Copy the SG list for this transaction into tmeporary arrays.
+		// These will be freed in ptlsim.cpp.
+		uint64_t *sg_ptr = malloc(sizeof(uint64_t) * sglist->nsg);
+		uint64_t *sg_len = malloc(sizeof(uint64_t) * sglist->nsg);
+		int i;
+		for (i=0; i<sglist->nsg; i++)
+		{
+			fprintf(stderr, "%d (base = %ld, len = %ld)\n", i, sglist->sg[i].base, sglist->sg[i].len);
+			sg_ptr[i] = sglist->sg[i].base;
+			sg_len[i] = sglist->sg[i].len;
+		}
+
+		// call ptlsim io handling in AHCI mode (mode 1)
+		add_qemu_io_event(NULL, (QemuIOCB2)&ncq_cb_finish, opaque, ret, 1, 20000, cur_sector, is_read, 
+				io_buffer_size, sg_ptr, sg_len, sglist->nsg);
+	} 
+    else {
+        ncq_cb_finish(opaque, ret);
+    }
+#else
+    ncq_cb_finish(opaque, ret);
+#endif
+
 }
 
 static void process_ncq_command(AHCIState *s, int port, uint8_t *cmd_fis,
@@ -768,7 +832,7 @@ static void process_ncq_command(AHCIState *s, int port, uint8_t *cmd_fis,
             DPRINTF(port, "tag %d aio read %ld\n", ncq_tfs->tag, ncq_tfs->lba);
             ncq_tfs->aiocb = dma_bdrv_read(ncq_tfs->drive->port.ifs[0].bs,
                                            &ncq_tfs->sglist, ncq_tfs->lba,
-                                           ncq_cb, ncq_tfs);
+                                           ncq_cb_start, ncq_tfs);
             break;
         case WRITE_FPDMA_QUEUED:
             DPRINTF(port, "NCQ writing %d sectors to LBA %ld, tag %d\n",
@@ -778,7 +842,7 @@ static void process_ncq_command(AHCIState *s, int port, uint8_t *cmd_fis,
             DPRINTF(port, "tag %d aio write %ld\n", ncq_tfs->tag, ncq_tfs->lba);
             ncq_tfs->aiocb = dma_bdrv_write(ncq_tfs->drive->port.ifs[0].bs,
                                             &ncq_tfs->sglist, ncq_tfs->lba,
-                                            ncq_cb, ncq_tfs);
+                                            ncq_cb_start, ncq_tfs);
             break;
         default:
             DPRINTF(port, "error: tried to process non-NCQ command as NCQ\n");
