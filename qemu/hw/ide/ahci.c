@@ -732,32 +732,36 @@ static void ncq_cb_finish(void *opaque, int ret)
 
 static void ncq_cb_start(void *opaque, int ret)
 {
-    // Extract and print out all important pieces of data for call into PTLSim Disk Simulation code.
-
-    NCQTransferState *ncq_tfs = (NCQTransferState *)opaque;
-    // Extract LBA
-    uint64_t lba = ncq_tfs->lba;
-
-    // Extract Operation Type
-    int is_read = ncq_tfs->is_read;
-
-    // Extract Operation Size
-    int io_buffer_size = (int)ncq_tfs->sector_count;
-
-
-    // Exract sglist
-    QEMUSGList * sglist = &ncq_tfs->sglist;
-
-    int io_buffer_size2 = 0;
-    int i;
-    for (i = 0; i < sglist->nsg; i++) {
-        io_buffer_size2 += sglist->sg[i].len;
-    }
-
-	fprintf(stderr, "JimMod: In ncb_cb_start(): lba=%lu, is_read=%d, sector_count=%d, io_buffer_size2=%d\n", lba, is_read, io_buffer_size, io_buffer_size2);
-
 #if defined MARSS_QEMU && defined MARSS_DELAY_IO
     if (in_simulation) {
+
+		// Extract and print out all important pieces of data for call into PTLSim Disk Simulation code.
+
+		NCQTransferState *ncq_tfs = (NCQTransferState *)opaque;
+
+		// Extract LBA
+		uint64_t lba = ncq_tfs->lba;
+
+		// Extract Operation Type
+		int is_read = ncq_tfs->is_read;
+
+		// Extract Operation Size
+		int io_buffer_size = (int)ncq_tfs->sector_count * 512;
+
+
+		// Exract sglist
+		QEMUSGList * sglist = &ncq_tfs->sglist;
+
+		// Confirm that the sglist is the same size as the sector_count says it is.
+		int io_buffer_size2 = 0;
+		int i;
+		for (i = 0; i < sglist->nsg; i++) {
+			io_buffer_size2 += sglist->sg[i].len;
+		}
+		assert(io_buffer_size == io_buffer_size2);
+
+		fprintf(stderr, "JimMod: In ncb_cb_start(): lba=%lu, is_read=%d, sector_count*512=%d, io_buffer_size2=%d\n", lba, is_read, io_buffer_size, io_buffer_size2);
+
 		uint64_t cur_sector = lba;
 		fprintf(stderr, "\nsector_num = %lu\n", cur_sector);
 		fprintf(stderr, "\nio_buffer_size = %d\n", io_buffer_size);
@@ -767,7 +771,6 @@ static void ncq_cb_start(void *opaque, int ret)
 		// These will be freed in ptlsim.cpp.
 		uint64_t *sg_ptr = malloc(sizeof(uint64_t) * sglist->nsg);
 		uint64_t *sg_len = malloc(sizeof(uint64_t) * sglist->nsg);
-		int i;
 		for (i=0; i<sglist->nsg; i++)
 		{
 			fprintf(stderr, "%d (base = %ld, len = %ld)\n", i, sglist->sg[i].base, sglist->sg[i].len);
