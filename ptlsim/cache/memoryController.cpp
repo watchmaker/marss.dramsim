@@ -65,12 +65,13 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 #ifdef DRAMSIM
 
     //TODO: make the pwd argument settable by a simconfig option or maybe even by a #define in scons? 
-	mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_8M_8B_x16_sg15.ini", "system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20 ); 
+        DRAMSim::CSVWriter &CSVOut = DRAMSim::CSVWriter::GetCSVWriterInstance("cvs_out"); 
+	mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_8M_8B_x16_sg15.ini", "system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20, CSVOut); 
 
 	typedef DRAMSim::Callback <Memory::MemoryController, void, uint, uint64_t, uint64_t> dramsim_callback_t;
 	DRAMSim::TransactionCompleteCB *read_cb = new dramsim_callback_t(this, &MemoryController::read_return_cb);
 	DRAMSim::TransactionCompleteCB *write_cb = new dramsim_callback_t(this, &MemoryController::write_return_cb);
-	mem->RegisterCallbacks(read_cb, write_cb, NULL);
+	mem->registerCallbacks(read_cb, write_cb, NULL);
 
 #ifdef ENABLE_PCI_SSD
 	if (pci_ssd == NULL)

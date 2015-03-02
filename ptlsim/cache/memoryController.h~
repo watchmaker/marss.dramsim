@@ -35,7 +35,7 @@
 
 #ifdef DRAMSIM
 #include <DRAMSim.h>
-using DRAMSim::DRAMSimInterface;
+using DRAMSim::MultiChannelMemorySystem;
 static const unsigned dramsim_transaction_size = 64;
 #endif
 
@@ -95,7 +95,7 @@ class MemoryController : public Controller
 #define ALIGN_ADDRESS(addr, bytes) (addr & ~(((unsigned long)bytes) - 1L))
 		void read_return_cb(uint, uint64_t, uint64_t);
 		void write_return_cb(uint, uint64_t, uint64_t);
-		DRAMSimInterface *mem;
+		MultiChannelMemorySystem *mem;
 #endif
 #ifdef ENABLE_PCI_SSD
 		void add_dma_cb(uint isWrite, uint64_t addr, uint64_t blah);
