@@ -65,8 +65,8 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 #ifdef DRAMSIM
 
     //TODO: make the pwd argument settable by a simconfig option or maybe even by a #define in scons? 
-        DRAMSim::CSVWriter &CSVOut = DRAMSim::CSVWriter::GetCSVWriterInstance("cvs_out"); 
-	mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_8M_8B_x16_sg15.ini", "ini/system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20, CSVOut ); 
+    //DRAMSim::CSVWriter &CSVOut = DRAMSim::CSVWriter::GetCSVWriterInstance("cvs_out"); 
+	mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_8M_8B_x16_sg15.ini", "ini/system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20); 
 
 	typedef DRAMSim::Callback <Memory::MemoryController, void, uint, uint64_t, uint64_t> dramsim_callback_t;
 	DRAMSim::TransactionCompleteCB *read_cb = new dramsim_callback_t(this, &MemoryController::read_return_cb);
@@ -231,7 +231,12 @@ bool MemoryController::handle_interconnect_cb(void *arg)
      */
 
     bool isWrite = memRequest->get_type() == MEMORY_OP_UPDATE;
-    bool accepted = mem->addTransaction(isWrite,physicalAddress);
+    DRAMSim::DRAMSimTransaction *dsim_trans = mem->makeTransaction(isWrite, physicalAddress);
+    bool accepted = false;
+    if(dsim_trans != NULL)
+	    accepted = mem->addTransaction(dsim_trans);
+    else
+	    accepted = false;
     queueEntry->inUse = true;
     assert(accepted);
     if (!accepted) {
